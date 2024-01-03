@@ -11,19 +11,24 @@ import {
   getTimeSinceStart,
   setStartingTime,
 } from "./utils/timeinfo.js";
+import { schedule } from "node-cron";
 
 const pb = new PocketBase(process.env.POCKETBASE_URL!) as TypedPocketBase;
 
-create({
-  session: "main",
-})
-  .then((client) => {
+main();
+
+async function main() {
+  try {
+    const client = await create({
+      session: "main",
+    });
+
     client.isLoggedIn().then(() => setStartingTime());
     start(client);
-  })
-  .catch((erro) => {
-    console.log(erro);
-  });
+  } catch (error) {
+    console.error(error);
+  }
+}
 
 function incomingMsgHandler(client: Whatsapp, message: Message) {
   if (message.body === "!status") {
@@ -42,17 +47,14 @@ function incomingMsgHandler(client: Whatsapp, message: Message) {
       .catch((erro) => {
         console.error("Error when sending: ", erro); //return object error
       });
-  } else {
-    console.log(message);
-    client
-      .sendMentioned(message.from, "Halo @628561052550", ["628561052550"])
-      .then((result) => console.log(result));
   }
 }
 
 function start(client: Whatsapp) {
   client.onMessage((message) => incomingMsgHandler(client, message));
-  RunMessageGeneration(client);
+
+  // Minute 1 and 2, hour 5, everyday
+  schedule("1,2 5 * * *", () => RunMessageGeneration(client));
 }
 
 async function RunMessageGeneration(client: Whatsapp) {
@@ -76,7 +78,8 @@ async function RunMessageGeneration(client: Whatsapp) {
       return;
     }
 
-    const needReminder = fetchResult.items.filter((item) => !item.reminder);
+    const needReminder = fetchResult.items;
+    // .filter((item) => item.reminder);
     if (needReminder.length === 0) {
       console.log("All reminder has been sent");
       return;
