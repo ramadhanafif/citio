@@ -82,50 +82,51 @@ function start(client: Whatsapp) {
   RunMessageGeneration(client);
 }
 
-function RunMessageGeneration(client: Whatsapp) {
+async function RunMessageGeneration(client: Whatsapp) {
   const tommorow = formatISO9075(addDays(new Date(), 1));
   const today = formatISO9075(new Date());
 
-  // await pb.admins.authWithPassword(
-  //   process.env.ADMIN_USER!,
-  //   process.env.ADMIN_PASSWORD!
-  // );
-
-  pb.collection(Collections.ClassSimple)
-    .getList(1, 50, {
-      filter: `tanggal <= "${tommorow}" && tanggal >= "${today}"`,
-    })
-    .then((fetchResult) => {
-      if (fetchResult.items.length === 0) {
-        console.log("no class tommorow");
-        return;
-      }
-
-      const needReminder = fetchResult.items.filter((item) => !item.reminder);
-      if (needReminder.length === 0) {
-        console.log("All reminder has been sent");
-        return;
-      }
-
-      client
-        .sendText(
-          process.env.TEST_API_GROUP!,
-          CreateReminderMessage(needReminder)
-        )
-        .then(() => {
-          // Update reminder column in database
-          needReminder.forEach((item) => {
-            pb.collection(Collections.ClassSimple)
-              .update(item.id, {
-                reminder: true,
-              })
-              .then(() => console.log("Reminder sent for ", item.materi));
-          });
-        });
-    })
-    .catch((error) =>
-      console.log(`Error fetching ClassSimple, cause: ${error}`)
+  try {
+    await pb.admins.authWithPassword(
+      process.env.ADMIN_USER!,
+      process.env.ADMIN_PASS!
     );
+
+    const fetchResult = await pb
+      .collection(Collections.ClassSimple)
+      .getList(1, 50, {
+        filter: `tanggal <= "${tommorow}" && tanggal >= "${today}"`,
+      });
+
+    if (fetchResult.items.length === 0) {
+      console.log("no class tommorow");
+      return;
+    }
+
+    const needReminder = fetchResult.items.filter((item) => !item.reminder);
+    if (needReminder.length === 0) {
+      console.log("All reminder has been sent");
+      return;
+    }
+
+    await client.sendText(
+      process.env.TEST_API_GROUP!,
+      CreateReminderMessage(needReminder)
+    );
+
+    // Update reminder column in database
+    needReminder.forEach(async (item) => {
+      await pb
+        .collection(Collections.ClassSimple)
+        .update(item.id, { reminder: true });
+      console.log("Reminder sent for ", item.materi);
+    });
+
+    // Clear auth token, alias logout
+    pb.authStore.clear();
+  } catch (error) {
+    console.log("Msg check routine error: ", error);
+  }
 }
 
 function CreateReminderMessage(classData: ClassSimpleResponse[]) {
