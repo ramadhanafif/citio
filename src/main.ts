@@ -1,56 +1,29 @@
 import { create, Message, Whatsapp } from "venom-bot";
-import PocketBase from "pocketbase";
-import {
-  ClassSimpleResponse,
-  Collections,
-  TypedPocketBase,
-} from "./pocketbase-types.js";
-
-import { addDays, format, formatISO9075 } from "date-fns";
-import { id } from "date-fns/locale";
-
 import "dotenv/config";
+import PocketBase from "pocketbase";
+import { Collections, TypedPocketBase } from "./pocketbase-types.js";
 
-let startingTime = new Date();
+import { addDays, formatISO9075 } from "date-fns";
+
+import MultiLineMessage, { CreateReminderMessage } from "./utils/message.js";
+import {
+  generateCurrentDateTime,
+  getTimeSinceStart,
+  setStartingTime,
+} from "./utils/timeinfo.js";
+
 const pb = new PocketBase(process.env.POCKETBASE_URL!) as TypedPocketBase;
 
 create({
   session: "main",
 })
   .then((client) => {
-    client.isLoggedIn().then(() => (startingTime = new Date()));
+    client.isLoggedIn().then(() => setStartingTime());
     start(client);
   })
   .catch((erro) => {
     console.log(erro);
   });
-
-class MultiLineMessage extends Array<string> {
-  constructor() {
-    super();
-  }
-
-  addMessage(message: string) {
-    this.push(message);
-  }
-
-  getMessages() {
-    return this.join("\n");
-  }
-}
-
-function generateCurrentDateTime() {
-  return new Date().toLocaleString("id-ID", {
-    dateStyle: "full",
-    timeStyle: "short",
-  });
-}
-
-function getTimeSinceStart() {
-  return new Date(new Date().getTime() - startingTime.getTime())
-    .toISOString()
-    .slice(11, 19);
-}
 
 function incomingMsgHandler(client: Whatsapp, message: Message) {
   if (message.body === "!status") {
@@ -127,34 +100,4 @@ async function RunMessageGeneration(client: Whatsapp) {
   } catch (error) {
     console.log("Msg check routine error: ", error);
   }
-}
-
-function CreateReminderMessage(classData: ClassSimpleResponse[]) {
-  const msg = new MultiLineMessage();
-  const currentDate = format(new Date(), "PPPP", { locale: id });
-
-  // Header
-  msg.addMessage("PENGINGAT JADWAL CITIO");
-  msg.addMessage(`Untuk ${currentDate.toUpperCase()}`);
-  msg.addMessage("");
-
-  // Body
-  classData.forEach((item) => {
-    msg.addMessage(`Materi: ${item.materi}`);
-    msg.addMessage(`Kelas : ${item.kelas}`);
-    msg.addMessage(`Pemateri : ${item.pemateri}`);
-    msg.addMessage(`Pendamping: ${item.pendamping}`);
-    msg.addMessage("");
-  });
-
-  // Footer
-  msg.addMessage(
-    "_Sebaik-baik kalian adalah yang belajar dan mengajarkan Al-Qur'an_ [HR. Bukhari, no. 5027]"
-  );
-  msg.addMessage("");
-  msg.addMessage("*CitiO*");
-  msg.addMessage("*Class Tahsin Online*");
-  msg.addMessage("_Belajar AlQuran Mudah Kapanpun Dimanapun_");
-
-  return msg.getMessages();
 }
