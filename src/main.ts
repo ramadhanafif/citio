@@ -9,10 +9,10 @@ import {
 import { addDays, format, formatISO9075 } from "date-fns";
 import { id } from "date-fns/locale";
 
-const TEST_API_GROUP = "120363206916303221@g.us";
+import "dotenv/config";
 
 let startingTime = new Date();
-const pb = new PocketBase("https://www.ctonline.cloud") as TypedPocketBase;
+const pb = new PocketBase(process.env.POCKETBASE_URL!) as TypedPocketBase;
 
 create({
   session: "main",
@@ -86,6 +86,11 @@ function RunMessageGeneration(client: Whatsapp) {
   const tommorow = formatISO9075(addDays(new Date(), 1));
   const today = formatISO9075(new Date());
 
+  // await pb.admins.authWithPassword(
+  //   process.env.ADMIN_USER!,
+  //   process.env.ADMIN_PASSWORD!
+  // );
+
   pb.collection(Collections.ClassSimple)
     .getList(1, 50, {
       filter: `tanggal <= "${tommorow}" && tanggal >= "${today}"`,
@@ -97,9 +102,16 @@ function RunMessageGeneration(client: Whatsapp) {
       }
 
       const needReminder = fetchResult.items.filter((item) => !item.reminder);
+      if (needReminder.length === 0) {
+        console.log("All reminder has been sent");
+        return;
+      }
 
       client
-        .sendText(TEST_API_GROUP, CreateReminderMessage(needReminder))
+        .sendText(
+          process.env.TEST_API_GROUP!,
+          CreateReminderMessage(needReminder)
+        )
         .then(() => {
           // Update reminder column in database
           needReminder.forEach((item) => {

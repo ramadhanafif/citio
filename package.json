@@ -18,6 +18,7 @@
     "venom-bot": "^5.0.21"
   },
   "dependencies": {
+    "dotenv": "^16.3.1",
     "node-cron": "^3.0.3"
   }
 }
