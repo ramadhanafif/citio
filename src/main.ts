@@ -31,7 +31,7 @@ async function main() {
 }
 
 function incomingMsgHandler(client: Whatsapp, message: Message) {
-  if (message.body === "!status") {
+  if (message.body.toLowerCase() === "!status") {
     const reply = new MultiLineMessage();
 
     reply.addMessage(
@@ -48,13 +48,83 @@ function incomingMsgHandler(client: Whatsapp, message: Message) {
         console.error("Error when sending: ", erro); //return object error
       });
   }
+
+  if (message.body.toLowerCase() === "!forcereminder") {
+    RunMessageGeneration(client);
+  }
+
+  if (message.body.startsWith("!materi")) {
+    console.log("Materi command received");
+    // Exmaple input message
+
+    // !materi
+    // materi: Mad Harfi Musyba'
+    // pemateri: Umi Ema
+    // pendamping: Umi Eni
+    // tanggal: 02/01/2024
+    // kelas: A
+
+    const input = message.body.split("\n");
+    if (input.length === 1) {
+      client.sendText(message.from, "Format pesan salah");
+      return;
+    }
+
+    const validKeys = new Set([
+      "materi",
+      "pemateri",
+      "pendamping",
+      "tanggal",
+      "kelas",
+    ]);
+    const readKeys = new Set<string>();
+    let missingKeys: string[] = [];
+    const readData = new Map<string, string>();
+
+    const regex = /(\w+)\s?:\s?(.*)$/;
+    input.forEach((line) => {
+      const capGroup = line.match(regex);
+      if (capGroup) {
+        const key = capGroup[1].toLowerCase();
+        const value = capGroup[2];
+
+        if (validKeys.has(key)) {
+          readKeys.add(key);
+          readData.set(key, value);
+        }
+      }
+    });
+
+    if (readKeys.size !== validKeys.size) {
+      missingKeys = [...validKeys].filter((key) => !readKeys.has(key));
+      console.log(missingKeys);
+      client.sendText(
+        message.from,
+        `Format pesan salah!\nMasukkan juga: ${missingKeys.join(", ")}`
+      );
+      return;
+    }
+
+    // push to db
+    // TODO: typescript remove undefined because check already done
+    const newClassTopic = {
+      materi: readData.get("materi"),
+      pemateri: readData.get("pemateri"),
+      pendamping: readData.get("pendamping"),
+      tanggal: readData.get("tanggal"),
+      kelas: readData.get("kelas"),
+      reminder: false,
+    };
+
+
+  }
 }
 
 function start(client: Whatsapp) {
   client.onMessage((message) => incomingMsgHandler(client, message));
 
   // Minute 1 and 2, hour 5, everyday
-  schedule("1,2 5 * * *", () => RunMessageGeneration(client));
+  schedule("0,1 5 * * *", () => RunMessageGeneration(client));
 }
 
 async function RunMessageGeneration(client: Whatsapp) {
