@@ -12,6 +12,7 @@ import {
   setStartingTime,
 } from "./utils/timeinfo.js";
 import { schedule } from "node-cron";
+import { DateTime } from "luxon";
 
 const pb = new PocketBase(process.env.POCKETBASE_URL!) as TypedPocketBase;
 
@@ -53,20 +54,31 @@ function incomingMsgHandler(client: Whatsapp, message: Message) {
     RunMessageGeneration(client);
   }
 
+  if (message.body.toLowerCase() === "!formatmateri") {
+    const msg = new MultiLineMessage();
+    msg.addMessage("Contoh format pesan yang diterima oleh bot");
+    msg.addMessage("!materi");
+
+    msg.addMessage("materi: Mad Harfi Musyba'");
+    msg.addMessage("pemateri: Umi Ema");
+    msg.addMessage("pendamping: Umi Eni");
+    msg.addMessage("tanggal: 31/12/2023");
+    msg.addMessage("kelas: A");
+  }
+
   if (message.body.startsWith("!materi")) {
     console.log("Materi command received");
-    // Exmaple input message
-
-    // !materi
-    // materi: Mad Harfi Musyba'
-    // pemateri: Umi Ema
-    // pendamping: Umi Eni
-    // tanggal: 02/01/2024
-    // kelas: A
 
     const input = message.body.split("\n");
     if (input.length === 1) {
-      client.sendText(message.from, "Format pesan salah");
+      const msg = new MultiLineMessage();
+
+      msg.addMessage("Format pesan salah");
+      msg.addMessage(
+        "Kirim !formatmateri untuk mengetahui format penambahan jadwal baru"
+      );
+
+      client.sendText(message.from, msg.getMessages());
       return;
     }
 
@@ -84,47 +96,85 @@ function incomingMsgHandler(client: Whatsapp, message: Message) {
     const regex = /(\w+)\s?:\s?(.*)$/;
     input.forEach((line) => {
       const capGroup = line.match(regex);
-      if (capGroup) {
-        const key = capGroup[1].toLowerCase();
-        const value = capGroup[2];
+      if (!capGroup) {
+        console.log("No matching regex");
+        return;
+      }
 
-        if (validKeys.has(key)) {
-          readKeys.add(key);
-          readData.set(key, value);
+      const key = capGroup[1].toLowerCase();
+      const value = capGroup[2];
+
+      if (validKeys.has(key) === false) {
+        console.log("Invalid key, skip");
+        return;
+      }
+
+      readKeys.add(key);
+      if (key === "tanggal") {
+        const parsedTime = DateTime.fromFormat(value, "d/L/y");
+        if (parsedTime.isValid) {
+          // NOTE: Hardcoded class be scheduled at 5 AM
+
+          readData.set(key, parsedTime.plus({ hours: 5 }).toISO());
         }
+      } else {
+        readData.set(key, value);
       }
     });
 
     if (readKeys.size !== validKeys.size) {
       missingKeys = [...validKeys].filter((key) => !readKeys.has(key));
-      console.log(missingKeys);
-      client.sendText(
-        message.from,
-        `Format pesan salah!\nMasukkan juga: ${missingKeys.join(", ")}`
-      );
+
+      const msg = new MultiLineMessage();
+      msg.addMessage("Format pesan salah!");
+      msg.addMessage("Pastikan kolom ini terisi dengan benar:");
+      msg.addMessage(missingKeys.join(", "));
+
+      client.sendText(message.from, msg.getMessages());
       return;
     }
 
     // push to db
-    // TODO: typescript remove undefined because check already done
     const newClassTopic = {
-      materi: readData.get("materi"),
-      pemateri: readData.get("pemateri"),
-      pendamping: readData.get("pendamping"),
-      tanggal: readData.get("tanggal"),
-      kelas: readData.get("kelas"),
+      materi: readData.get("materi")!,
+      pemateri: readData.get("pemateri")!,
+      pendamping: readData.get("pendamping")!,
+      tanggal: readData.get("tanggal")!,
+      kelas: readData.get("kelas")!,
       reminder: false,
     };
 
-
+    pb.collection(Collections.ClassSimple)
+      .create(newClassTopic)
+      .then((record) =>
+        client.sendText(
+          message.from,
+          `Penambahan materi ${record.materi} sukses dengan id ${
+            record.id
+          } pada ${DateTime.fromJSDate(new Date(record.created)).toLocaleString(
+            DateTime.DATETIME_MED
+          )}`
+        )
+      )
+      .catch(() => {
+        client.sendText(
+          message.from,
+          "Error dalam menyimpan di database. Coba lagi!"
+        );
+      });
   }
 }
 
 function start(client: Whatsapp) {
-  client.onMessage((message) => incomingMsgHandler(client, message));
+  pb.admins
+    .authWithPassword(process.env.ADMIN_USER!, process.env.ADMIN_PASS!)
+    .then(() => {
+      client.onMessage((message) => incomingMsgHandler(client, message));
 
-  // Minute 1 and 2, hour 5, everyday
-  schedule("0,1 5 * * *", () => RunMessageGeneration(client));
+      // Minute 1 and 2, hour 5, everyday
+      schedule("0,1 5 * * *", () => RunMessageGeneration(client));
+    })
+    .catch((error) => console.log(error));
 }
 
 async function RunMessageGeneration(client: Whatsapp) {
@@ -132,11 +182,6 @@ async function RunMessageGeneration(client: Whatsapp) {
   const today = formatISO9075(new Date());
 
   try {
-    await pb.admins.authWithPassword(
-      process.env.ADMIN_USER!,
-      process.env.ADMIN_PASS!
-    );
-
     const fetchResult = await pb
       .collection(Collections.ClassSimple)
       .getList(1, 50, {
@@ -167,9 +212,6 @@ async function RunMessageGeneration(client: Whatsapp) {
         .update(item.id, { reminder: true });
       console.log("Reminder sent for ", item.materi);
     });
-
-    // Clear auth token, alias logout
-    pb.authStore.clear();
   } catch (error) {
     console.log("Msg check routine error: ", error);
   }
