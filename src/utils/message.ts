@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { ClassSimpleResponse } from "src/pocketbase-types.js";
 import { id } from "date-fns/locale";
 
@@ -18,10 +18,10 @@ export default class MultiLineMessage extends Array<string> {
 
 export function CreateReminderMessage(classData: ClassSimpleResponse[]) {
   const msg = new MultiLineMessage();
-  const currentDate = format(new Date(), "PPPP", { locale: id });
+  const currentDate = format(addDays(new Date(), 1), "PPPP", { locale: id });
 
   // Header
-  msg.addMessage("PENGINGAT JADWAL CITIO");
+  msg.addMessage("*PENGINGAT JADWAL CITIO*");
   msg.addMessage(`Untuk ${currentDate.toUpperCase()}`);
   msg.addMessage("");
 
@@ -31,6 +31,7 @@ export function CreateReminderMessage(classData: ClassSimpleResponse[]) {
     msg.addMessage(`Kelas : ${item.kelas}`);
     msg.addMessage(`Pemateri : ${item.pemateri}`);
     msg.addMessage(`Pendamping: ${item.pendamping}`);
+    msg.addMessage("Pukul 05.00 WIB");
     msg.addMessage("");
   });
 

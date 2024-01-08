@@ -32,6 +32,7 @@ async function main() {
 }
 
 function incomingMsgHandler(client: Whatsapp, message: Message) {
+  console.log("Message:", message);
   if (message.body.toLowerCase() === "!status") {
     const reply = new MultiLineMessage();
 
@@ -171,8 +172,8 @@ function start(client: Whatsapp) {
     .then(() => {
       client.onMessage((message) => incomingMsgHandler(client, message));
 
-      // Minute 1 and 2, hour 5, everyday
-      schedule("0,1 5 * * *", () => RunMessageGeneration(client));
+      // Minute 0 and 1, hour 5, everyday
+      schedule("0,1 17 * * *", () => RunMessageGeneration(client));
     })
     .catch((error) => console.log(error));
 }
@@ -193,8 +194,7 @@ async function RunMessageGeneration(client: Whatsapp) {
       return;
     }
 
-    const needReminder = fetchResult.items;
-    // .filter((item) => item.reminder);
+    const needReminder = fetchResult.items.filter((item) => item.reminder);
     if (needReminder.length === 0) {
       console.log("All reminder has been sent");
       return;
