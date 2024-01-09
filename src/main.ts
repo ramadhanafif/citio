@@ -194,12 +194,16 @@ async function RunMessageGeneration(client: Whatsapp) {
       return;
     }
 
-    const needReminder = fetchResult.items.filter((item) => item.reminder);
+    const needReminder = fetchResult.items.filter((item) => !item.reminder);
     if (needReminder.length === 0) {
       console.log("All reminder has been sent");
       return;
     }
 
+    // Sort message alphabetically
+    needReminder.sort((a, b) => {
+      return a.kelas.localeCompare(b.kelas);
+    });
     await client.sendText(
       process.env.TEST_API_GROUP!,
       CreateReminderMessage(needReminder)
