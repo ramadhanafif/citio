@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": " esbuild src/main.ts --bundle --platform=node --packages=external --outdir=dist/bundle/ --format=esm"
+    "build": "npx esbuild src/main.ts --bundle --minify --platform=node --outfile=dist/bundled.cjs"
   },
   "type": "module",
   "author": "M Afif Ramadhan",
